@@ -66,13 +66,13 @@ hr.thin{border:none;border-top:1px solid #e2e8f0;margin:12px 0}
 .r-tbl td{padding:8px 14px;border:1px solid #e2e8f0;color:#1e293b}
 .r-tbl td.rt,.r-tbl th.rt{text-align:right}
 .r-tbl tr.total td{background:#f0f6ff;font-weight:700;color:#0c1f3f}
-.r-sigs{display:flex;justify-content:space-around;margin-top:22px}
+.r-sigs{display:flex;justify-content:space-between;align-items:flex-end;margin-top:22px}
 .r-sigs.sm{margin-top:14px}
 .sig-blk{text-align:center}
 .sig-line{width:150px;border-bottom:1.5px solid #2d3748;height:72px;margin:0 auto 6px}
 .sig-lbl{font-size:13px;color:#64748b;font-family:'Noto Sans TC',sans-serif}
-.r-date{text-align:right;font-size:16px;font-weight:600;color:#0c1f3f;margin-top:20px;font-family:'Noto Sans TC',sans-serif}
-.r-date.sm{margin-top:12px;font-size:14.5px;font-weight:600;color:#0c1f3f}
+.r-date{font-size:16px;font-weight:600;color:#0c1f3f;font-family:'Noto Sans TC',sans-serif;padding-bottom:6px}
+.r-date.sm{font-size:14.5px;font-weight:600;color:#0c1f3f;padding-bottom:4px}
 [contenteditable="true"]{cursor:text;outline:none;border-radius:3px;padding:0 3px;transition:background .12s}
 [contenteditable="true"]:hover{background:rgba(219,234,254,.4)}
 [contenteditable="true"]:focus{background:rgba(219,234,254,.6);outline:2px dashed #3b82f6;outline-offset:2px}
@@ -349,63 +349,68 @@ function autoFitPrint(){
   const shell = document.getElementById('rContent');
   if(!shell) return;
 
-  // 先重置所有動態樣式
   shell.style.zoom = '';
   shell.style.transform = '';
   shell.style.transformOrigin = '';
   shell.style.width = '';
 
-  // 移除上次動態注入的 style tag
   const old = document.getElementById('_printDynamic');
   if(old) old.remove();
 
   const feeCount = document.querySelectorAll('.fee-row').length;
 
-  // 費用項目 < 2 時不需要壓縮
-  if(feeCount < 2) return;
+  // 費用項目 < 3 時不需要壓縮
+  if(feeCount < 3) return;
 
-  // 依項目數計算需要壓縮的程度
-  // 每多1項費用列大約多 36px，需要從 padding/margin 擠出空間
-  const extra = (feeCount - 1) * 36; // 超出基準的額外高度（px）
-
-  // 動態注入壓縮樣式（只壓 spacing，不改字體和 logo）
   const style = document.createElement('style');
   style.id = '_printDynamic';
 
-  // 3項：輕度壓縮；4項：中度；5項以上：重度
-  let secPad, origBot, stubTop, stubBot, sigH, amtMar, hrThick, hrThin, sigs, sigsSmr;
-  if(feeCount <= 3){
-    secPad = '7px 28px 5px'; origBot = '20px'; stubTop = '18px'; stubBot = '10px';
-    sigH = '40px'; amtMar = '4px 0'; hrThick = '4px'; hrThin = '3px';
-    sigs = '8px'; sigsSmr = '6px';
-  } else if(feeCount <= 4){
-    secPad = '5px 28px 4px'; origBot = '14px'; stubTop = '14px'; stubBot = '8px';
-    sigH = '32px'; amtMar = '3px 0'; hrThick = '3px'; hrThin = '2px';
-    sigs = '6px'; sigsSmr = '4px';
+  // 依項目數累進壓縮 padding/margin/spacing，字體與 logo 完全不動
+  let secPad, origTop, origBot, stubTop, stubBot, sigH, amtMar, hrThick, hrThin, sigs, sigsSmr, tblMar, tblPad, fieldLH, fieldSmLH, dateTop, dateSmTop, noteMar;
+
+  if(feeCount === 3){
+    secPad = '7px 28px 5px'; origTop = '18px'; origBot = '18px'; stubTop = '16px'; stubBot = '8px';
+    sigH = '38px'; amtMar = '4px 0'; hrThick = '4px'; hrThin = '3px';
+    sigs = '8px'; sigsSmr = '6px'; tblMar = '3px 0'; tblPad = '4px 10px';
+    fieldLH = '1.8'; fieldSmLH = '1.7'; dateTop = '5px'; dateSmTop = '4px'; noteMar = '2px';
+  } else if(feeCount === 4){
+    secPad = '5px 28px 4px'; origTop = '12px'; origBot = '12px'; stubTop = '12px'; stubBot = '6px';
+    sigH = '30px'; amtMar = '3px 0'; hrThick = '3px'; hrThin = '2px';
+    sigs = '6px'; sigsSmr = '4px'; tblMar = '2px 0'; tblPad = '3px 8px';
+    fieldLH = '1.7'; fieldSmLH = '1.6'; dateTop = '4px'; dateSmTop = '3px'; noteMar = '2px';
+  } else if(feeCount === 5){
+    secPad = '4px 28px 3px'; origTop = '8px'; origBot = '8px'; stubTop = '8px'; stubBot = '4px';
+    sigH = '24px'; amtMar = '2px 0'; hrThick = '2px'; hrThin = '2px';
+    sigs = '4px'; sigsSmr = '3px'; tblMar = '2px 0'; tblPad = '2px 8px';
+    fieldLH = '1.6'; fieldSmLH = '1.5'; dateTop = '3px'; dateSmTop = '2px'; noteMar = '1px';
   } else {
-    secPad = '4px 28px 3px'; origBot = '10px'; stubTop = '10px'; stubBot = '6px';
-    sigH = '26px'; amtMar = '2px 0'; hrThick = '2px'; hrThin = '2px';
-    sigs = '4px'; sigsSmr = '3px';
+    // 6項以上：最大壓縮
+    secPad = '3px 24px 2px'; origTop = '6px'; origBot = '6px'; stubTop = '6px'; stubBot = '3px';
+    sigH = '20px'; amtMar = '2px 0'; hrThick = '2px'; hrThin = '1px';
+    sigs = '3px'; sigsSmr = '2px'; tblMar = '1px 0'; tblPad = '2px 6px';
+    fieldLH = '1.5'; fieldSmLH = '1.4'; dateTop = '2px'; dateSmTop = '2px'; noteMar = '1px';
   }
 
   style.textContent = `
     @media print {
-      .r-sec { padding: ${secPad} !important; }
-      .r-sec.original { padding-bottom: ${origBot} !important; }
-      .r-sec.stub { padding-top: ${stubTop} !important; padding-bottom: ${stubBot} !important; }
-      .r-amt { margin: ${amtMar} !important; }
-      .r-amt.sm { margin: ${amtMar} !important; }
-      .r-sigs { margin-top: ${sigs} !important; }
-      .r-sigs.sm { margin-top: ${sigsSmr} !important; }
-      .sig-line { height: ${sigH} !important; }
-      hr.thick { margin-bottom: ${hrThick} !important; }
-      hr.thin { margin: ${hrThin} 0 !important; }
-      .r-tbl { margin: 3px 0 !important; }
-      .r-field { line-height: 1.75 !important; }
-      .r-field.sm { line-height: 1.65 !important; }
-      .r-date { margin-top: 4px !important; }
-      .r-date.sm { margin-top: 3px !important; }
-      .r-note { margin: 2px 0 0 !important; padding: 2px 0 !important; }
+      .r-sec                { padding: ${secPad} !important; }
+      .r-sec.original       { padding-top: ${origTop} !important; padding-bottom: ${origBot} !important; }
+      .r-sec.stub           { padding-top: ${stubTop} !important; padding-bottom: ${stubBot} !important; }
+      .r-amt                { margin: ${amtMar} !important; }
+      .r-amt.sm             { margin: ${amtMar} !important; }
+      .r-sigs               { margin-top: ${sigs} !important; }
+      .r-sigs.sm            { margin-top: ${sigsSmr} !important; }
+      .sig-line             { height: ${sigH} !important; }
+      hr.thick              { margin-bottom: ${hrThick} !important; }
+      hr.thin               { margin: ${hrThin} 0 !important; }
+      .r-tbl                { margin: ${tblMar} !important; }
+      .r-tbl th, .r-tbl td  { padding: ${tblPad} !important; }
+      .r-field              { line-height: ${fieldLH} !important; }
+      .r-field.sm           { line-height: ${fieldSmLH} !important; }
+      .r-date               { margin-top: ${dateTop} !important; }
+      .r-date.sm            { margin-top: ${dateSmTop} !important; }
+      .r-note               { margin: ${noteMar} 0 0 !important; padding: ${noteMar} 0 !important; }
+      .r-hdr                { margin-bottom: 6px !important; }
     }
   `;
   document.head.appendChild(style);
@@ -531,8 +536,10 @@ function genReceipt(){
     <tr class="total"><td class="rt" colspan="${hasMethod ? 2 : 1}">合　　計</td><td class="rt" ${ed}>${amtNum}</td></tr>
   </tbody></table>
   ${note ? `<div class="r-field sm"><span class="r-lbl">備　　　註：</span><span class="r-val" ${ed}>${note}</span></div>` : ''}
-  <div class="r-sigs sm"><div class="sig-blk"><div class="sig-line"></div><div class="sig-lbl">律師　${lawyer}（簽章）</div></div></div>
-  <div class="r-date sm" ${ed}>${dtxt}</div>
+  <div class="r-sigs sm">
+    <div class="r-date sm" ${ed}>${dtxt}</div>
+    <div class="sig-blk"><div class="sig-line"></div><div class="sig-lbl">律師　${lawyer}（簽章）</div></div>
+  </div>
 </div>`;
 
   const original = `<div class="r-sec original">
@@ -553,9 +560,9 @@ function genReceipt(){
   ${isTWD ? `<div class="r-field"><span class="r-lbl">大寫金額：</span><span class="r-val" ${ed}>新台幣${amtTW}</span></div>` : ''}
   ${note ? `<div class="r-field"><span class="r-lbl">備　　　註：</span><span class="r-val" ${ed}>${note}</span></div>` : ''}
   <div class="r-sigs">
+    <div class="r-date" ${ed}>${dtxt}</div>
     <div class="sig-blk"><div class="sig-line"></div><div class="sig-lbl">律師　${lawyer}（簽章）</div></div>
   </div>
-  <div class="r-date" ${ed}>${dtxt}</div>
 </div>`;
 
   document.getElementById('rContent').innerHTML = original + stub;
