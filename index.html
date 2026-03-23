@@ -6,6 +6,7 @@
 <title>收據產生器</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -233,11 +234,15 @@ hr.thin{border:none;border-top:1px solid #e2e8f0;margin:12px 0}
   <div class="receipt-shell">
     <div class="print-bar no-print">
       <span class="print-bar-lbl">文件操作：</span>
-      <button class="btn btn-outline" style="padding:6px 14px;font-size:12px" onclick="window.print()">🖨️ 列印</button>
       <button class="btn btn-green" style="padding:6px 14px;font-size:12px" onclick="exportPDF()">🖨️ 列印 / 存 PDF</button>
       <button class="btn btn-outline" style="padding:6px 14px;font-size:12px" onclick="backToEdit()">← 返回修改</button>
       <div style="width:1px;height:20px;background:rgba(255,255,255,.15);margin:0 4px"></div>
-      <button onclick="handleSaveRecord()" style="background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:12px;font-weight:600;font-family:'Noto Sans TC',sans-serif;cursor:pointer">🗄️ 建檔至 Google Sheets</button>
+      <button onclick="localSaveRecord()" style="background:linear-gradient(135deg,#0f766e,#14b8a6);color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:12px;font-weight:600;font-family:'Noto Sans TC',sans-serif;cursor:pointer">🗄️ 建檔</button>
+      <button onclick="exportLocalDB()" style="background:linear-gradient(135deg,#1d4ed8,#3b82f6);color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:12px;font-weight:600;font-family:'Noto Sans TC',sans-serif;cursor:pointer">📊 匯出 Excel</button>
+      <button onclick="clearLocalDB()" style="background:rgba(255,255,255,.1);color:#fca5a5;border:1px solid rgba(252,165,165,.4);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;font-family:'Noto Sans TC',sans-serif;cursor:pointer">🗑️ 清除建檔</button>
+      <span id="local-badge" style="font-size:11px;margin-left:4px;color:rgba(255,255,255,.5)"></span>
+      <div style="width:1px;height:20px;background:rgba(255,255,255,.15);margin:0 4px"></div>
+      <button onclick="handleSaveRecord()" style="background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;border:none;border-radius:8px;padding:6px 16px;font-size:12px;font-weight:600;font-family:'Noto Sans TC',sans-serif;cursor:pointer">☁️ 建檔至 Google Sheets</button>
       <span id="db-badge" style="font-size:11px;margin-left:6px;color:rgba(255,255,255,.5)"></span>
     </div>
     <div id="rContent"></div>
@@ -490,7 +495,6 @@ function toTW(n){
 // ── Generate ─────────────────────────────────────────────
 function genReceipt(){
   const client = document.getElementById('c-client').value.trim()||'　　　　';
-  updateRefNo();
   const refno  = document.getElementById('c-refno').value.trim()||'宜律收字第000000號';
   const ds     = document.getElementById('c-date').value;
   const matter = document.getElementById('c-matter').value.trim()||'　　　';
@@ -755,6 +759,88 @@ function clearAll(){
   updateRefNo();
   document.getElementById('rWrapper').style.display='none';
 }
+
+// ── 本機暫存資料庫（LocalStorage + SheetJS）─────────────────
+const LOCAL_DB_KEY = 'receipt_local_db';
+const LOCAL_HEADERS = ['字號','收費日期','客戶名稱','辦理事項','幣別','費用項目','金額','付款方式','備註','律師','小計','建檔時間'];
+
+function getLocalDB(){ return JSON.parse(localStorage.getItem(LOCAL_DB_KEY) || '[]'); }
+function setLocalDB(data){ localStorage.setItem(LOCAL_DB_KEY, JSON.stringify(data)); }
+
+function updateLocalBadge(){
+  const n = getLocalDB().length;
+  const el = document.getElementById('local-badge');
+  if(!el) return;
+  el.textContent = n > 0 ? `暫存 ${n} 筆` : '';
+  el.style.color = n > 0 ? 'rgba(255,255,255,.6)' : 'rgba(255,255,255,.35)';
+}
+
+function localSaveRecord(){
+  const refno    = document.getElementById('c-refno').value.trim();
+  const dateStr  = document.getElementById('c-date').value;
+  const client   = document.getElementById('c-client').value.trim();
+  const matter   = document.getElementById('c-matter').value.trim();
+  const note     = document.getElementById('c-note').value.trim();
+  const lawyer   = document.getElementById('c-lawyer').value.trim();
+  const currency = getCurrency();
+  const fees     = collectFeeRows();
+  const total    = fees.reduce((s,r) => s + r.amount, 0);
+
+  if(!client){ alert('⚠️ 請先填寫客戶名稱'); return; }
+  if(!dateStr){ alert('⚠️ 請先選擇收費日期'); return; }
+
+  const db = getLocalDB();
+  const ts = new Date().toLocaleString('zh-TW');
+  fees.forEach((f, i) => {
+    db.push([
+      refno, dateStr, client, matter, currency,
+      f.type, f.amount, f.method || '',
+      i === 0 ? note : '',
+      lawyer,
+      i === 0 ? total : '',
+      ts
+    ]);
+  });
+  setLocalDB(db);
+  updateLocalBadge();
+
+  const el = document.getElementById('local-badge');
+  if(el){ el.textContent = `✅ 已建檔（共 ${db.length} 筆）`; el.style.color='#4ade80'; }
+  setTimeout(updateLocalBadge, 3000);
+}
+
+function exportLocalDB(){
+  const db = getLocalDB();
+  if(!db.length){ alert('⚠️ 尚無暫存資料，請先點「🗄️ 建檔」'); return; }
+
+  const ws = XLSX.utils.aoa_to_sheet([LOCAL_HEADERS, ...db]);
+  ws['!cols'] = [
+    {wch:24},{wch:12},{wch:12},{wch:16},{wch:8},
+    {wch:14},{wch:10},{wch:10},{wch:22},{wch:10},{wch:10},{wch:18}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '收據資料庫');
+
+  const now  = new Date();
+  const rocY = now.getFullYear() - 1911;
+  const m    = String(now.getMonth()+1).padStart(2,'0');
+  const d    = String(now.getDate()).padStart(2,'0');
+  XLSX.writeFile(wb, `${rocY}${m}${d}_收據資料庫.xlsx`);
+}
+
+function clearLocalDB(){
+  const db = getLocalDB();
+  if(!db.length){ alert('目前沒有暫存資料'); return; }
+  if(!confirm(`確定要清除所有暫存資料（共 ${db.length} 筆）？\n此動作無法復原。`)) return;
+  localStorage.removeItem(LOCAL_DB_KEY);
+  updateLocalBadge();
+  const el = document.getElementById('local-badge');
+  if(el){ el.textContent = '✅ 已清除'; el.style.color='#4ade80'; }
+  setTimeout(updateLocalBadge, 2000);
+}
+
+// 初始化顯示暫存筆數
+updateLocalBadge();
 </script>
 </body>
 </html>
