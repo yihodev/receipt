@@ -484,12 +484,40 @@ function fmtDate(ds, fmt){
 }
 function fmtNum(n){ return parseInt(n||0).toLocaleString('zh-TW'); }
 function toTW(n){
-  const units=['','十','百','千','萬','十萬','百萬','千萬','億'];
   const chars=['零','壹','貳','參','肆','伍','陸','柒','捌','玖'];
+  const units=['','拾','佰','仟'];
   n=parseInt(n||0); if(isNaN(n)||n===0) return '零元整';
-  const s=n.toString(); let out='';
-  for(let i=0;i<s.length;i++){const d=parseInt(s[i]),u=units[s.length-1-i];if(d===0){if(out.slice(-1)!=='零')out+='零';}else out+=chars[d]+u;}
-  return out.replace(/零+$/,'')+'元整';
+  // 將數字分成「億」、「萬」、「個位」三段
+  function seg4(num){
+    // 將最多4位數轉換為國字，回傳字串（不含段位名稱）
+    if(num===0) return '';
+    const s=num.toString(); let out='';
+    for(let i=0;i<s.length;i++){
+      const d=parseInt(s[i]), u=units[s.length-1-i];
+      if(d===0){ if(out.slice(-1)!=='零') out+='零'; }
+      else out+=chars[d]+u;
+    }
+    return out.replace(/零+$/,'');
+  }
+  const yi   = Math.floor(n/100000000);
+  const wan  = Math.floor((n%100000000)/10000);
+  const ge   = n%10000;
+  let out='';
+  if(yi>0){ out+=seg4(yi)+'億'; }
+  if(wan>0){
+    // 若億段存在且萬段開頭不足千（即萬段<1000），需補零
+    if(yi>0 && wan<1000) out+='零';
+    out+=seg4(wan)+'萬';
+  } else if(yi>0 && ge>0){
+    // 有億、無萬、有個位，需補零
+    out+='零';
+  }
+  if(ge>0){
+    // 若前面有內容且個位段開頭不足千，需補零
+    if((yi>0||wan>0) && ge<1000) out+='零';
+    out+=seg4(ge);
+  }
+  return out+'元整';
 }
 
 // ── Generate ─────────────────────────────────────────────
